@@ -1,0 +1,81 @@
+---
+title: "PA1_template"
+author: "SS"
+date: "Thursday, July 17, 2014"
+output: html_document
+---
+Peer Assesment 1
+=====================================================
+
+
+
+```{r, echo=TRUE}
+unzip("repdata-data-activity.zip") # unzip the file
+classes <- c("numeric", "Date", "numeric") # set classes
+activity <- read.csv("activity.csv", header = TRUE, colClasses = classes, na.strings="NA") # read file
+```
+
+** Calculating the mean and median of total steps per day**
+```{r, echo=TRUE}
+activityrmna <- activity[complete.cases(activity), ] # removing NAs
+sum <- aggregate(activityrmna$steps, by = list(Date=activityrmna$date), FUN = sum)
+hist(sum$x, main="Histogram of Total Steps a Day", xlab="Total Steps a Day", ylab="Number of Days", col="red")
+```
+- The mean number of total steps per day is `r mean(sum$x)` steps and the median is `r median(sum$x)` steps.
+
+** The following plot shows the daily activity pattern**
+```{r, echo=TRUE}
+## Plot average number of steps by time interval
+# average is the name of the data table that contains the average number of steps taken by time interval
+average <- aggregate(activityrmna$steps, by = list(interval = activityrmna$interval), FUN = mean)
+plot(average$interval, average$x, type = "l", col="blue", main = "Steps by Time Interval", xlab="Time interval (min)", ylab="Average number of steps")
+# Time interval that has the maximum of the average number of steps
+maximum <- average[average$x == max(average$x),]
+```
+
+- The time interval that has the max number of steps is `r maximum[1,1]`
+
+** Imputing missing values**
+- The total number of missing values in the dataset is `r nrow(activity) - nrow(activityrmna)`
+
+The missing values have been filled in the dataset with the following code.
+Missing value is the average of the step count for the day of all intervals
+```{r, echo=TRUE}
+# Calculate average steps in a day
+avgDate <- aggregate(activityrmna$steps, by = list(date=activityrmna$date), FUN = mean) # date frame with average steps per date
+mergedData <- merge(activity, avgDate, by.x="date", by.y="date", all.x=TRUE) # merge original data with NAs with implied data
+mergedData$steps[is.na(mergedData$steps)] <- mergedData$x # replace NA with implied data
+mergedData$x <- NULL # remove the implied column to clean up
+mergedDatarmna <- mergedData[complete.cases(mergedData), ] # new data frame with NAs removed
+
+impliedSum <- aggregate(mergedDatarmna$steps, by = list(Date=mergedDatarmna$date), FUN = sum)
+hist(impliedSum$x, main="Histogram of Total Steps a Day (implied)", xlab="Total Steps a Day", ylab = "Number of Days", col="red")
+```
+- With the implied values filled in, the mean number of steps is `r mean(impliedSum$x)` steps and the median is `r median(impliedSum$x)` steps.
+
+- The values are different from the first part. The implied mean is LOWER by `r mean(impliedSum$x) - mean(sum$x)` and the implied median is HIGHER by `r median(impliedSum$x) - median(sum$x)`.
+
+- By imputing the missing data, the total number of steps is higher by `r sum(mergedDatarmna$steps) - sum(activityrmna$steps)` steps.
+
+** Differences in activity patterns between weekdays and weekends**
+```{r, echo=TRUE}
+mergedDatarmna$day <- weekdays(mergedDatarmna$date) # adding a column identifying days of the week
+## Separating out weekend days by spliting the data frame
+for (i in 1:nrow(mergedDatarmna)) {
+  if(mergedDatarmna$day[i] == "Saturday" | mergedDatarmna$day[i] == "Sunday") {mergedDatarmna$day[i] = "weekend"} else {mergedDatarmna$day[i] = "weekday"}
+}
+
+weekend <- mergedDatarmna[(mergedDatarmna$day=="weekend"), ] # Creating weekend data frame
+weekday <- mergedDatarmna[(mergedDatarmna$day=="weekday"), ] # Creating weekday data frame
+
+## Averaging by 5 min interval
+avgweekend <- aggregate(weekend$step, by = list(interval=weekend$interval), FUN = mean) # calculating avg steps per interval for weekend data frame
+avgweekday <- aggregate(weekday$step, by = list(interval=weekday$interval), FUN = mean) # calculating avg steps per interval for weekday data frame
+avgweekend$day = "weekend" #adding back the day indentifier
+avgweekday$day = "weekday" #adding back the day identifier
+total <- merge(avgweekday, avgweekend, all.x=TRUE, all.y=TRUE) #merging the weekend and weekday datasets 
+total <- transform(total, day = factor(day)) # converting day to factor
+library(lattice)
+xyplot(x ~ interval | day, data = total, layout=c(1,2), type="l", xlab="Interval", ylab="Average number of steps")
+```
+- The plots show that on an average weekday, the subjects walks a lot in the morning, followed by a period of low activity (maybe sitting in the office) and then walks in the evening. During an average weekend, the walking activity is more evenly spread out from morning to evening.
